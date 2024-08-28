@@ -1,11 +1,13 @@
 package controllers
 
 import (
+	"api/src/autenticacao"
 	"api/src/banco"
 	"api/src/modelos"
 	"api/src/repositorios"
 	"api/src/respostas"
 	"encoding/json"
+	"errors"
 	"github.com/gorilla/mux"
 	"io"
 	"log"
@@ -112,16 +114,28 @@ func BuscarUsuario(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Buscar usuarios: %v", usuarios)
 }
 func AtualizarUsuario(w http.ResponseWriter, r *http.Request) {
-	corpoRequest, erro := io.ReadAll(r.Body)
-	if erro != nil {
-		respostas.Erro(w, http.StatusUnprocessableEntity, erro)
-		return
-	}
 
 	parametros := mux.Vars(r)
 	usuarioID, erro := strconv.ParseUint(parametros["usuarioId"], 10, 64)
 	if erro != nil {
 		respostas.Erro(w, http.StatusBadRequest, erro)
+		return
+	}
+
+	usuarioIDNoToken, erro := autenticacao.ExtrairUsuarioID(r)
+	if erro != nil {
+		respostas.Erro(w, http.StatusUnauthorized, erro)
+		return
+	}
+
+	if usuarioID != usuarioIDNoToken {
+		respostas.Erro(w, http.StatusForbidden, errors.New("Não é possivel atualizar um usuário que não seja o seu."))
+		return
+	}
+
+	corpoRequest, erro := io.ReadAll(r.Body)
+	if erro != nil {
+		respostas.Erro(w, http.StatusUnprocessableEntity, erro)
 		return
 	}
 
@@ -153,11 +167,21 @@ func AtualizarUsuario(w http.ResponseWriter, r *http.Request) {
 	respostas.JSON(w, http.StatusNoContent, nil)
 }
 func DeletarUsuario(w http.ResponseWriter, r *http.Request) {
-	parametros := mux.Vars(r)
 
+	parametros := mux.Vars(r)
 	usuarioID, erro := strconv.ParseUint(parametros["usuarioId"], 10, 64)
 	if erro != nil {
 		respostas.Erro(w, http.StatusBadRequest, erro)
+		return
+	}
+
+	usuarioIDNoToken, erro := autenticacao.ExtrairUsuarioID(r)
+	if erro != nil {
+		respostas.Erro(w, http.StatusUnauthorized, erro)
+		return
+	}
+	if usuarioID != usuarioIDNoToken {
+		respostas.Erro(w, http.StatusForbidden, errors.New("Não é possivel deletar um usuário que não seja o seu."))
 		return
 	}
 
@@ -171,6 +195,75 @@ func DeletarUsuario(w http.ResponseWriter, r *http.Request) {
 	repositorio := repositorios.NovoRepositorioUsuarios(db)
 	if erro = repositorio.DeletarUsuario(usuarioID); erro != nil {
 		respostas.Erro(w, http.StatusInternalServerError, erro)
+	}
+
+	respostas.JSON(w, http.StatusNoContent, nil)
+}
+func SeguirUsuario(w http.ResponseWriter, r *http.Request) {
+	seguidorID, erro := autenticacao.ExtrairUsuarioID(r)
+	if erro != nil {
+		respostas.Erro(w, http.StatusUnauthorized, erro)
+		return
+	}
+
+	variables := mux.Vars(r)
+	usuarioID, erro := strconv.ParseUint(variables["usuarioId"], 10, 64)
+	if erro != nil {
+		respostas.Erro(w, http.StatusBadRequest, erro)
+		return
+	}
+
+	if usuarioID == seguidorID {
+		respostas.Erro(w, http.StatusForbidden, errors.New("Não é possível seguir a sí mesmo."))
+		return
+	}
+
+	db, erro := banco.Conectar()
+	if erro != nil {
+		respostas.Erro(w, http.StatusInternalServerError, erro)
+		return
+	}
+	defer db.Close()
+
+	repositorio := repositorios.NovoRepositorioUsuarios(db)
+	if erro = repositorio.Seguir(usuarioID, seguidorID); erro != nil {
+		respostas.Erro(w, http.StatusInternalServerError, erro)
+		return
+	}
+
+	respostas.JSON(w, http.StatusNoContent, nil)
+}
+
+func PararDeSeguirUsuario(w http.ResponseWriter, r *http.Request) {
+	seguidorID, erro := autenticacao.ExtrairUsuarioID(r)
+	if erro != nil {
+		respostas.Erro(w, http.StatusUnauthorized, erro)
+		return
+	}
+
+	variables := mux.Vars(r)
+	usuarioID, erro := strconv.ParseUint(variables["usuarioId"], 10, 64)
+	if erro != nil {
+		respostas.Erro(w, http.StatusBadRequest, erro)
+		return
+	}
+
+	if usuarioID == seguidorID {
+		respostas.Erro(w, http.StatusForbidden, errors.New("Não é possível deixar de seguir a sí mesmo."))
+		return
+	}
+
+	db, erro := banco.Conectar()
+	if erro != nil {
+		respostas.Erro(w, http.StatusInternalServerError, erro)
+		return
+	}
+	defer db.Close()
+
+	repositorio := repositorios.NovoRepositorioUsuarios(db)
+	if erro = repositorio.PararDeSeguir(usuarioID, seguidorID); erro != nil {
+		respostas.Erro(w, http.StatusInternalServerError, erro)
+		return
 	}
 
 	respostas.JSON(w, http.StatusNoContent, nil)

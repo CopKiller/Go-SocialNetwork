@@ -11,7 +11,7 @@ import (
 type Usuario struct {
 	ID       uint64    `json:"id,omitempty"`
 	Nome     string    `json:"nome,omitempty" validate:"nonzero,max=50"`
-	Nick     string    `json:"nick,omitempty" validate:"min=3,max=50,regexp=^[a-zA-Z]*$"`
+	Nick     string    `json:"nick,omitempty" validate:"min=3,max=50,regexp=^[a-zA-Z0-9_]*$"`
 	Email    string    `json:"email,omitempty" validate:"min=3,max=50,regexp=^[0-9a-z]+@[0-9a-z]+(\\.[0-9a-z]+)+$"`
 	Senha    string    `json:"senha,omitempty" validate:"min=3,max=100"`
 	CriadoEm time.Time `json:"criadoEm,omitempty"`
